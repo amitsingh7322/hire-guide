@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate } = require('../middlewares/auth');
 const db = require('../models/db');
 const { calculateDynamicPrice } = require('../utils/pricing');
 

@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 const db = require('../models/db');
 
 // Search hotels

@@ -1,5 +1,5 @@
 // ============================================
-// TourSpot Connect Backend Server
+// HireGuide Connect Backend Server
 // Node.js + Express + PostgreSQL + Socket.io
 // ============================================
 
@@ -149,7 +149,7 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`
     ╔════════════════════════════════════════╗
-    ║   🚀 TourSpot Connect Backend API     ║
+    ║   🚀 HireGuide Connect Backend API     ║
     ║   Server running on port ${PORT}        ║
     ║   Environment: ${process.env.NODE_ENV || 'development'}           ║
     ║   Frontend: ${process.env.FRONTEND_URL || 'http://localhost:3000'} ║

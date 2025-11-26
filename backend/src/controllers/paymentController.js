@@ -46,7 +46,7 @@ exports.createPaymentIntent = async (req, res) => {
         bookingType,
         userId: req.user.id,
       },
-      description: `TourSpot Connect - ${bookingType === 'guide' ? 'Guide' : 'Hotel'} Booking`,
+      description: `HireGuide Connect - ${bookingType === 'guide' ? 'Guide' : 'Hotel'} Booking`,
     });
 
     // Update booking with payment intent ID

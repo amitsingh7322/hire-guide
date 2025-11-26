@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const guideController = require('../controllers/guideController');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 
 // Public routes
 router.get('/search', guideController.searchGuides);

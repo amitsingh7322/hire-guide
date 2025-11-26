@@ -1,7 +1,7 @@
 {
-  "name": "tourspot-connect-backend",
+  "name": "hireguide-connect-backend",
   "version": "1.0.0",
-  "description": "TourSpot Connect Backend API - Node.js + Express + PostgreSQL",
+  "description": "HireGuide Connect Backend API - Node.js + Express + PostgreSQL",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

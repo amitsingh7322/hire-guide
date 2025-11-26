@@ -41,7 +41,7 @@ exports.register = [
         [email, passwordHash, firstName, lastName, phone]
       );
 
-      const user = userResult.rows;
+      const user = userResult[0].rows;
 
       // Assign role
       await db.query(
