@@ -1,198 +1,157 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 
 class ApiClient {
-  private baseUrl: string;
   private token: string | null = null;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+  constructor() {
+    // Get token from localStorage only on client side
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('token');
+      this.token = localStorage.getItem('authToken');
     }
   }
 
   setToken(token: string) {
     this.token = token;
+    console.log("Setting token in ApiClient:", token);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
     }
+  }
+
+  getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    
+    // Check localStorage first
+    const storedToken = localStorage.getItem('authToken');
+    if (storedToken) {
+      this.token = storedToken;
+    }
+    return this.token;
   }
 
   clearToken() {
     this.token = null;
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
     }
   }
 
-  getToken() {
-    return this.token;
-  }
+  private async request(method: string, endpoint: string, body?: any) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = this.getToken();
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const headers = new Headers(options.headers as HeadersInit);
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
-    if (this.token) {
-      headers.set('Authorization', `Bearer ${this.token}`);
-    }
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
-    }
-
-    return response.json();
-  }
-
-  // Auth
-  async register(data: any) {
-    return this.request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async login(email: string, password: string) {
-    return this.request('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-  }
-
-  async getCurrentUser() {
-    return this.request('/api/auth/me');
-  }
-
-  // Guides
-  async searchGuides(params: any) {
-    const query = new URLSearchParams(
-      Object.entries(params).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          acc[key] = String(value);
+      // Handle 401 Unauthorized
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
         }
-        return acc;
-      }, {} as Record<string, string>)
-    ).toString();
-    return this.request(`/api/guides/search?${query}`);
-  }
+        throw new Error('Unauthorized - Please login again');
+      }
 
-  async getGuide(id: string) {
-    return this.request(`/api/guides/${id}`);
-  }
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || error.message || 'Request failed');
+      }
 
-  async createGuideProfile(data: any) {
-    return this.request('/api/guides', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // Hotels
-  async searchHotels(params: any) {
-    const query = new URLSearchParams(
-      Object.entries(params).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          acc[key] = String(value);
-        }
-        return acc;
-      }, {} as Record<string, string>)
-    ).toString();
-    return this.request(`/api/hotels/search?${query}`);
-  }
-
-  async getHotel(id: string, params?: any) {
-    const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.request(`/api/hotels/${id}${query}`);
-  }
-
-  async createHotel(data: any) {
-    return this.request('/api/hotels', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // Bookings
-  async createBooking(data: any) {
-    return this.request('/api/bookings', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getBookings() {
-    return this.request('/api/bookings');
-  }
-
-  async updateBookingStatus(id: string, status: string) {
-    return this.request(`/api/bookings/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-  }
-
-  // Payments
-  async createPaymentIntent(bookingId: string, bookingType: string) {
-    return this.request('/api/payments/create-intent', {
-      method: 'POST',
-      body: JSON.stringify({ bookingId, bookingType }),
-    });
-  }
-
-  // Reviews
-  async getGuideReviews(guideId: string) {
-    return this.request(`/api/reviews/guide/${guideId}`);
-  }
-
-  async createReview(data: any) {
-    return this.request('/api/reviews', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // Messages
-  async getMessages() {
-    return this.request('/api/messages');
-  }
-
-  async getBookingMessages(bookingId: string) {
-    return this.request(`/api/messages/booking/${bookingId}`);
-  }
-
-  // File upload
-  async uploadFile(file: File, type: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const headers: HeadersInit = {};
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      return response.json();
+    } catch (error: any) {
+      console.error(`API Error [${method} ${endpoint}]:`, error.message);
+      throw error;
     }
+  }
 
-    const response = await fetch(`${this.baseUrl}/api/upload/${type}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+  async get(endpoint: string) {
+    return this.request('GET', endpoint);
+  }
 
-    if (!response.ok) {
-      throw new Error('Upload failed');
+  async post(endpoint: string, body: any) {
+    return this.request('POST', endpoint, body);
+  }
+
+  async put(endpoint: string, body: any) {
+    return this.request('PUT', endpoint, body);
+  }
+
+  async delete(endpoint: string) {
+    return this.request('DELETE', endpoint);
+  }
+
+async login(email: string, password: string) {
+  const response = await this.post('/api/auth/login', { email, password });
+  
+  // Only set token if response has it
+  if (response && response.token) {
+    this.setToken(response.token);
+  }
+  
+  return response;
+}
+
+
+async register(data: any) {
+  const response = await this.post('/api/auth/register', data);
+  if (response.token) this.setToken(response.token);
+  return response;
+}
+
+
+  async checkAuth() {
+    try {
+      const token = this.getToken();
+      console.log('Checking auth with token:', token);
+      if (!token) {
+        return null;
+      }
+      const response = await this.get('/api/auth/me');
+      return response;
+    } catch (error) {
+      this.clearToken();
+      return null;
     }
+  }
 
-    return response.json();
+  async searchGuides(filters: any) {
+    const params = new URLSearchParams();
+    if (filters.city) params.append('city', filters.city);
+    if (filters.pinCode) params.append('pinCode', filters.pinCode);
+    if (filters.minPrice) params.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
+    if (filters.minRating) params.append('minRating', filters.minRating);
+    if (filters.limit) params.append('limit', filters.limit);
+
+    const queryString = params.toString();
+    return this.get(`/api/guides/search${queryString ? '?' + queryString : ''}`);
+  }
+
+  async searchHotels(filters: any) {
+    const params = new URLSearchParams();
+    if (filters.city) params.append('city', filters.city);
+    if (filters.pinCode) params.append('pinCode', filters.pinCode);
+    if (filters.minPrice) params.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
+    if (filters.minRating) params.append('minRating', filters.minRating);
+    if (filters.limit) params.append('limit', filters.limit);
+
+    const queryString = params.toString();
+    return this.get(`/api/hotels/search${queryString ? '?' + queryString : ''}`);
   }
 }
 
-export const api = new ApiClient(API_URL);
+export const api = new ApiClient();

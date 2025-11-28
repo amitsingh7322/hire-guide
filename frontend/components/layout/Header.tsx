@@ -1,194 +1,182 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { Menu, X, User, LogOut, MapPin, Hotel, Calendar } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MapPin, LogOut, Menu, X } from 'lucide-react';
 import { api } from '@/lib/api';
 
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName?: string;
+  phone?: string;
+  role?: string;
+}
+
 export default function Header() {
-    const router = useRouter();
-    const pathname = usePathname();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [user, setUser] = useState<any>(null);
-    const [showUserMenu, setShowUserMenu] = useState(false);
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-    useEffect(() => {
-        checkAuth();
-    }, []);
-
+  useEffect(() => {
+    console.log('=== Header useEffect MOUNTED ===');
+    
     const checkAuth = async () => {
-        try {
-            const token = api.getToken();
-            if (token) {
-                const response = await api.getCurrentUser();
-                // response is unknown — narrow and check shape before accessing .user
-                if (response && typeof response === 'object' && 'user' in response) {
-                    setUser((response as any).user);
-                } else {
-                    console.warn('Unexpected response shape from getCurrentUser:', response);
-                }
-            }
-        } catch (error) {
-            console.error('Auth check failed:', error);
+      try {
+        console.log('Starting checkAuth...');
+        
+        const token = localStorage.getItem('authToken');
+        console.log('Token from localStorage:', token ? 'EXISTS' : 'NOT FOUND');
+        
+        if (!token) {
+          console.log('No token, setting user to null');
+          setUser(null);
+          setLoading(false);
+          return;
         }
-    };
 
-    const handleLogout = () => {
-        api.clearToken();
+        console.log('Token exists, fetching user data...');
+        
+        // Fetch user data from backend
+        const userData = await api.checkAuth();
+        console.log('User data received:', userData);
+        
+        if (userData) {
+          console.log('Setting user:', userData);
+          setUser(userData);
+        } else {
+          console.log('No user data returned, clearing auth');
+          setUser(null);
+          localStorage.removeItem('authToken');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
         setUser(null);
-        router.push('/');
+        localStorage.removeItem('authToken');
+      } finally {
+        console.log('checkAuth complete');
+        setLoading(false);
+      }
     };
 
-    const isActive = (path: string) => pathname === path;
+    checkAuth();
+  }, []); // Empty dependency array - runs once on mount
 
-    return (
-        <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-            <div className="container mx-auto px-4">
-                <div className="flex justify-between items-center h-16">
-                    {/* Logo */}
-                    <Link href="/" className="flex items-center gap-2 group">
-                        <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <MapPin className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-xl font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
-                            HireGuide
-                        </span>
-                    </Link>
+  const handleLogout = () => {
+    console.log('Logging out...');
+    api.clearToken();
+    localStorage.removeItem('authToken');
+    setUser(null);
+    router.push('/');
+    window.location.reload();
+  };
 
-                    {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center gap-8">
-                        <Link
-                            href="/guides"
-                            className={`font-medium transition-colors ${isActive('/guides')
-                                    ? 'text-teal-600 dark:text-teal-400'
-                                    : 'text-gray-700 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400'
-                                }`}
-                        >
-                            Find Guides
-                        </Link>
-                        <Link
-                            href="/hotels"
-                            className={`font-medium transition-colors ${isActive('/hotels')
-                                    ? 'text-teal-600 dark:text-teal-400'
-                                    : 'text-gray-700 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400'
-                                }`}
-                        >
-                            Hotels
-                        </Link>
-                        {user && (
-                            <Link
-                                href="/bookings"
-                                className={`font-medium transition-colors ${isActive('/bookings')
-                                        ? 'text-teal-600 dark:text-teal-400'
-                                        : 'text-gray-700 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400'
-                                    }`}
-                            >
-                                My Bookings
-                            </Link>
-                        )}
-                    </nav>
+  console.log('Header render:', { loading, userExists: !!user });
 
-                    {/* User Menu */}
-                    <div className="hidden md:flex items-center gap-4">
-                        {user ? (
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowUserMenu(!showUserMenu)}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                >
-                                    <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                        {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
-                                    </div>
-                                    <span className="font-medium">{user.firstName}</span>
-                                </button>
+  if (loading) {
+    return <div className="h-16 bg-white shadow flex items-center"><span className="ml-4">Loading...</span></div>;
+  }
 
+  return (
+    <header className="bg-white shadow sticky top-0 z-50">
+      <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
+        <Link href="/" className="inline-flex items-center gap-2 group">
+          <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center">
+            <MapPin className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-gray-900">HireGuide</span>
+        </Link>
 
-                                {showUserMenu && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2">
-                                        <Link
-                                            href="/dashboard"
-                                            className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                        >
-                                            <User className="w-4 h-4 inline mr-2" />
-                                            Dashboard
-                                        </Link>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-red-600 dark:text-red-400"
-                                        >
-                                            <LogOut className="w-4 h-4 inline mr-2" />
-                                            Logout
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <>
-                                <Link
-                                    href="/login"
-                                    className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-                                >
-                                    Login
-                                </Link>
-                                <Link
-                                    href="/register"
-                                    className="px-6 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-lg font-semibold transition-all shadow-md hover:shadow-lg"
-                                >
-                                    Sign Up
-                                </Link>
-                            </>
-                        )}
-                    </div>
+        <div className="hidden md:flex items-center gap-8">
+          <Link href="/guides" className="text-gray-600 hover:text-gray-900 transition">
+            Find Guides
+          </Link>
+          <Link href="/hotels" className="text-gray-600 hover:text-gray-900 transition">
+            Hotels
+          </Link>
 
-                    {/* Mobile Menu Button */}
-                    <button
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                    >
-                        {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                    </button>
-                </div>
-
-                {/* Mobile Menu */}
-                {isMenuOpen && (
-                    <div className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800">
-                        <nav className="flex flex-col gap-2">
-                            <Link href="/guides" className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                Find Guides
-                            </Link>
-                            <Link href="/hotels" className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                Hotels
-                            </Link>
-                            {user ? (
-                                <>
-                                    <Link href="/bookings" className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                        My Bookings
-                                    </Link>
-                                    <Link href="/dashboard" className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                        Dashboard
-                                    </Link>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-red-600 dark:text-red-400"
-                                    >
-                                        Logout
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <Link href="/login" className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                        Login
-                                    </Link>
-                                    <Link href="/register" className="px-4 py-2 bg-teal-500 text-white rounded-lg text-center">
-                                        Sign Up
-                                    </Link>
-                                </>
-                            )}
-                        </nav>
-                    </div>
-                )}
+          {user ? (
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col text-right">
+                <span className="text-gray-900 font-semibold">
+                  {user.firstName || user.email}
+                </span>
+                {user.role && <span className="text-xs text-gray-600">{user.role}</span>}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded transition"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </button>
             </div>
-        </header>
-    );
+          ) : (
+            <div className="flex items-center gap-3">
+              <Link
+                href="/login"
+                className="px-6 py-2 text-teal-600 font-semibold hover:bg-teal-50 rounded transition"
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                className="px-6 py-2 bg-teal-600 text-white font-semibold rounded hover:bg-teal-700 transition"
+              >
+                Sign Up
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile menu button */}
+        <button
+          className="md:hidden"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </nav>
+
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-gray-50 border-t">
+          <div className="container mx-auto px-4 py-4 space-y-4">
+            <Link href="/guides" className="block text-gray-600 hover:text-gray-900">
+              Find Guides
+            </Link>
+            <Link href="/hotels" className="block text-gray-600 hover:text-gray-900">
+              Hotels
+            </Link>
+            {user ? (
+              <>
+                <div className="py-2 border-t">
+                  <p className="text-gray-900 font-semibold">{user.firstName}</p>
+                  <p className="text-sm text-gray-600">{user.email}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left text-red-600 hover:bg-red-50 px-2 py-2 rounded"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="block text-teal-600 font-semibold">
+                  Login
+                </Link>
+                <Link href="/register" className="block bg-teal-600 text-white px-4 py-2 rounded">
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </header>
+  );
 }

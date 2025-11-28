@@ -5,28 +5,42 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useToast } from '@/lib/ToastContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { showSuccess, showError } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
       const response = await api.login(email, password);
-      const { token } = response as { token: string };
-      api.setToken(token);
-      router.push('/');
-      window.location.reload(); // Refresh to update header
+
+      // Narrow and validate the unknown response before using it
+      if (response && typeof response === 'object') {
+        const res = response as { token?: unknown };
+        console.log("Login response:", res);
+        if (typeof res.token === 'string') {
+          api.setToken(res.token);
+          showSuccess('Login successful! Redirecting...');
+          setTimeout(() => {
+            router.push('/');
+            window.location.reload();
+          }, 1000);
+        } else {
+          throw new Error('Invalid login response: token missing');
+        }
+      } else {
+        throw new Error('Invalid login response');
+      }
     } catch (err: any) {
-      setError(err?.message || 'Login failed');
+      showError(err?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -35,27 +49,19 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
-        {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 group">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
               <MapPin className="w-7 h-7 text-teal-600" />
             </div>
-            <span className="text-3xl font-bold text-white">HireGuide</span>
+            <span className="text-3xl font-bold text-white">TourSpot</span>
           </Link>
         </div>
 
-        {/* Login Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
             Welcome Back
           </h2>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-              {error}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

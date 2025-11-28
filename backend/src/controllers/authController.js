@@ -101,8 +101,8 @@ exports.login = [
       if (userResult.rows.length === 0) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-
-      const user = userResult.rows;
+      console.log("userResult:", userResult.rows[0]);
+      const user = userResult.rows[0];
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password_hash);
@@ -125,7 +125,11 @@ exports.login = [
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
-          roles: user.roles.filter(r => r !== null),
+          roles: Array.isArray(user.roles)
+            ? user.roles.filter(r => r !== null)
+            : typeof user.roles === 'string'
+              ? user.roles.replace(/[{}"]/g, '').split(',').filter(r => r && r !== 'NULL')
+              : []
         },
         token,
       });
