@@ -40,8 +40,8 @@ exports.register = [
          VALUES ($1, $2, $3, $4, $5) RETURNING id, email, first_name, last_name`,
         [email, passwordHash, firstName, lastName, phone]
       );
-
-      const user = userResult[0].rows;
+console.log("userResult:",userResult,  userResult.rows[0]);
+      const user = userResult.rows[0];
 
       // Assign role
       await db.query(
