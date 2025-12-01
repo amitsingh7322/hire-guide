@@ -5,46 +5,61 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useToast } from '@/lib/ToastContext';
+import { toastError, toastSuccess }  from '@/lib/ToastContext';
+import { useAuth } from '@/lib/AuthContext';
+
 
 export default function LoginPage() {
   const router = useRouter();
-  const { showSuccess, showError } = useToast();
+  const { setUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const response = await api.login(email, password);
-
-      // Narrow and validate the unknown response before using it
-      if (response && typeof response === 'object') {
-        const res = response as { token?: unknown };
-        console.log("Login response:", res);
-        if (typeof res.token === 'string') {
-          api.setToken(res.token);
-          showSuccess('Login successful! Redirecting...');
-          setTimeout(() => {
-            router.push('/');
-            window.location.reload();
-          }, 1000);
-        } else {
-          throw new Error('Invalid login response: token missing');
-        }
+  try {
+    const response = await api.login(email, password);
+    if(response && response.error){
+      throw new Error(response.error);}
+    if (response && typeof response === 'object') {
+      const res :any= response as { token?: unknown };
+      console.log("Login response:", res);
+      if (typeof res.token === 'string') {
+        console.log("Login successful, token:", res.token);
+        
+        // Set token first
+        api.setToken(res.token);
+        
+        // Store user data
+        localStorage.setItem('authUser', JSON.stringify(res.user));
+        
+        // Update context
+        setUser(res.user);
+        
+        toastSuccess('Login successful! Redirecting...');
+        
+        // Wait for context to update, then navigate
+        setTimeout(() => {
+          router.push('/');
+        }, 500);  // Give React time to update Header
       } else {
-        throw new Error('Invalid login response');
+        throw new Error('Invalid login response.');
       }
-    } catch (err: any) {
-      showError(err?.message || 'Login failed');
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error('Invalid login response');
     }
-  };
+  } catch (err: any) {
+    toastError(err?.message || 'Login failed');
+    console.log("Login error:", err);
+    
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center py-12 px-4">
@@ -54,7 +69,7 @@ export default function LoginPage() {
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
               <MapPin className="w-7 h-7 text-teal-600" />
             </div>
-            <span className="text-3xl font-bold text-white">TourSpot</span>
+            <span className="text-3xl font-bold text-white">HireGuide</span>
           </Link>
         </div>
 

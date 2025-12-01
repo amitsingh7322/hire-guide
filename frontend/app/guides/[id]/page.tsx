@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { Star, MapPin, Calendar, Phone, MessageSquare, ChevronLeft, Trophy, Award } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
-import { useToast } from '@/lib/ToastContext';
+import { toastError, toastSuccess }  from '@/lib/ToastContext';
 
 interface Guide {
   id: string;
@@ -28,7 +28,6 @@ interface Guide {
 export default function GuideDetailsPage() {
     const params = useParams();
     const guideId = params.id as string;
-    const { showError } = useToast();
     const [guide, setGuide] = useState<Guide | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -52,14 +51,14 @@ export default function GuideDetailsPage() {
 
             } catch (err: any) {
                 setError(err.message || 'Failed to load guide');
-                showError(err?.message || 'Failed to load guide');
+                toastError(err?.message || 'Failed to load guide');
             } finally {
                 setLoading(false);
       }
     };
 
     if (guideId) fetchGuide();
-  }, [guideId, showError]);
+  }, [guideId]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
   if (error || !guide) return (

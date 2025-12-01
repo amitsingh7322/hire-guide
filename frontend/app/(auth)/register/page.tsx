@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Phone, Eye, EyeOff, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useToast } from '@/lib/ToastContext';
+import { toastError, toastSuccess } from '@/lib/ToastContext';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { showSuccess, showError } = useToast();
+  const { setUser } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -26,46 +27,65 @@ export default function RegisterPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (formData.password !== formData.confirmPassword) {
-      showError('Passwords do not match');
-      return;
+  if (formData.password !== formData.confirmPassword) {
+    toastError('Passwords do not match');
+    return;
+  }
+
+  if (formData.password.length < 6) {
+    toastError('Password must be at least 6 characters');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const response = await api.register(formData);
+
+    if (response && response.error) {
+      throw new Error(response.error);
     }
 
-    if (formData.password.length < 6) {
-      showError('Password must be at least 6 characters');
-      return;
-    }
+    if (response && typeof response === 'object') {
+      const res: any = response as { token?: string; user?: any };
+      console.log("Registration response:", res);
 
-    setLoading(true);
+      if (typeof res.token === 'string') {
+        console.log("Registration successful, token:", res.token);
 
-    try {
-      const response = await api.register(formData);
+        // ✅ Set token
+        api.setToken(res.token);
 
-      const isRegisterResponse = (res: unknown): res is { token: string } =>
-        res !== null &&
-        typeof res === 'object' &&
-        'token' in res &&
-        typeof (res as any).token === 'string';
+        // ✅ Store user
+        if (res.user) {
+          localStorage.setItem('authUser', JSON.stringify(res.user));
+          setUser(res.user);
+        }
 
-      if (!isRegisterResponse(response)) {
-        throw new Error('Invalid server response');
+        // ✅ Show success toast
+        toastSuccess('Registration successful! Redirecting...');
+
+        // ✅ Wait for state updates, then redirect
+        setTimeout(() => {
+          router.push('/');
+        }, 500);
+      } else {
+        throw new Error('Invalid registration response.');
       }
-
-      api.setToken(response.token);
-      showSuccess('Registration successful! Redirecting...');
-      setTimeout(() => {
-        router.push('/');
-        window.location.reload();
-      }, 1000);
-    } catch (err: any) {
-      showError(err.message || 'Registration failed');
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error('Invalid registration response');
     }
-  };
+  } catch (err: any) {
+    console.error("Registration error:", err);
+    toastError(err?.message || 'Registration failed');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center py-12 px-4">
@@ -75,7 +95,7 @@ export default function RegisterPage() {
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
               <MapPin className="w-7 h-7 text-teal-600" />
             </div>
-            <span className="text-3xl font-bold text-white">TourSpot</span>
+            <span className="text-3xl font-bold text-white">HireGuide</span>
           </Link>
         </div>
 

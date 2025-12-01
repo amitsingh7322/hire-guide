@@ -3,7 +3,9 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
-import { ToastProvider } from "@/lib/ToastContext";
+import { AuthProvider } from '@/lib/AuthContext'
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -20,13 +22,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ToastProvider>
+            <AuthProvider>
         <Header />
         <main className="min-h-screen">
+         
           {children}
+          
         </main>
         <Footer />
-        </ToastProvider>
+        </AuthProvider>
+          <ToastContainer />
       </body>
     </html>
   )

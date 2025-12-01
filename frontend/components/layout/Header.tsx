@@ -4,85 +4,33 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MapPin, LogOut, Menu, X } from 'lucide-react';
-import { api } from '@/lib/api';
-
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName?: string;
-  phone?: string;
-  role?: string;
-}
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Header() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, logout, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    console.log('=== Header useEffect MOUNTED ===');
-    
-    const checkAuth = async () => {
-      try {
-        console.log('Starting checkAuth...');
-        
-        const token = localStorage.getItem('authToken');
-        console.log('Token from localStorage:', token ? 'EXISTS' : 'NOT FOUND');
-        
-        if (!token) {
-          console.log('No token, setting user to null');
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log('Token exists, fetching user data...');
-        
-        // Fetch user data from backend
-        const userData = await api.checkAuth();
-        console.log('User data received:', userData);
-        
-        if (userData) {
-          console.log('Setting user:', userData);
-          setUser(userData);
-        } else {
-          console.log('No user data returned, clearing auth');
-          setUser(null);
-          localStorage.removeItem('authToken');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setUser(null);
-        localStorage.removeItem('authToken');
-      } finally {
-        console.log('checkAuth complete');
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []); // Empty dependency array - runs once on mount
+  console.log('Header render - user:', user, 'loading:', loading);
 
   const handleLogout = () => {
-    console.log('Logging out...');
-    api.clearToken();
-    localStorage.removeItem('authToken');
-    setUser(null);
-    router.push('/');
-    window.location.reload();
+    logout();
+    router.push('/'); // redirect home
   };
 
-  console.log('Header render:', { loading, userExists: !!user });
-
   if (loading) {
-    return <div className="h-16 bg-white shadow flex items-center"><span className="ml-4">Loading...</span></div>;
+    return (
+      <div className="h-16 bg-white shadow flex items-center">
+        <span className="ml-4">Loading...</span>
+      </div>
+    );
   }
+
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">
       <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
+        {/* Logo / Brand */}
         <Link href="/" className="inline-flex items-center gap-2 group">
           <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center">
             <MapPin className="w-6 h-6 text-white" />
@@ -90,6 +38,7 @@ export default function Header() {
           <span className="text-xl font-bold text-gray-900">HireGuide</span>
         </Link>
 
+        {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8">
           <Link href="/guides" className="text-gray-600 hover:text-gray-900 transition">
             Find Guides
@@ -104,7 +53,9 @@ export default function Header() {
                 <span className="text-gray-900 font-semibold">
                   {user.firstName || user.email}
                 </span>
-                {user.role && <span className="text-xs text-gray-600">{user.role}</span>}
+                {user.roles?.length ? (
+                  <span className="text-xs text-gray-600">{user.roles.join(', ')}</span>
+                ) : null}
               </div>
               <button
                 onClick={handleLogout}
@@ -141,7 +92,7 @@ export default function Header() {
         </button>
       </nav>
 
-      {/* Mobile menu */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-gray-50 border-t">
           <div className="container mx-auto px-4 py-4 space-y-4">
@@ -151,6 +102,7 @@ export default function Header() {
             <Link href="/hotels" className="block text-gray-600 hover:text-gray-900">
               Hotels
             </Link>
+
             {user ? (
               <>
                 <div className="py-2 border-t">
@@ -169,7 +121,10 @@ export default function Header() {
                 <Link href="/login" className="block text-teal-600 font-semibold">
                   Login
                 </Link>
-                <Link href="/register" className="block bg-teal-600 text-white px-4 py-2 rounded">
+                <Link
+                  href="/register"
+                  className="block bg-teal-600 text-white px-4 py-2 rounded"
+                >
                   Sign Up
                 </Link>
               </>

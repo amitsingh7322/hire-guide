@@ -57,6 +57,10 @@ class ApiClient {
       });
 
       // Handle 401 Unauthorized
+      const public_api=['/api/auth/login','/api/auth/register'];
+      if (public_api.includes(endpoint)) {
+        return response.json();
+      }
       if (response.status === 401) {
         this.clearToken();
         if (typeof window !== 'undefined') {
