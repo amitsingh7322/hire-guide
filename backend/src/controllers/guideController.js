@@ -1,5 +1,8 @@
 const db = require('../models/db');
+const { body, validationResult } = require('express-validator');
 const { calculateDynamicPrice } = require('../utils/pricing');
+
+// ===== SEARCH & GET =====
 
 // Search guides
 exports.searchGuides = async (req, res) => {
@@ -9,14 +12,14 @@ exports.searchGuides = async (req, res) => {
       pinCode,
       latitude,
       longitude,
-      maxDistance = 50, // km
+      maxDistance = 50,
       minPrice,
       maxPrice,
       minRating,
       languages,
       specialties,
       hasVehicle,
-      sortBy = 'rating', // rating, price, distance
+      sortBy = 'rating',
       page = 1,
       limit = 20,
     } = req.query;
@@ -25,18 +28,17 @@ exports.searchGuides = async (req, res) => {
       SELECT 
         g.*,
         p.first_name, p.last_name, p.avatar_url, p.phone,
-        COALESCE(json_agg(DISTINCT v.*) FILTER (WHERE v.id IS NOT NULL), '[]') as vehicles,
-        COUNT(DISTINCT v.id) as vehicle_count
+        COUNT(DISTINCT r.id) as review_count,
+        COALESCE(AVG(r.rating), 0) as avg_rating
       FROM guides g
       JOIN profiles p ON g.user_id = p.id
-      LEFT JOIN vehicles v ON g.id = v.guide_id AND v.available = true
-      WHERE g.is_verified = true AND g.availability_status = true
+      LEFT JOIN guide_reviews r ON g.id = r.guide_id
+      WHERE g.is_verified = true
     `;
 
     const params = [];
     let paramCount = 1;
 
-    // Location filters
     if (city) {
       query += ` AND LOWER(g.city) = LOWER($${paramCount})`;
       params.push(city);
@@ -49,7 +51,6 @@ exports.searchGuides = async (req, res) => {
       paramCount++;
     }
 
-    // Price filters
     if (minPrice) {
       query += ` AND g.hourly_rate >= $${paramCount}`;
       params.push(minPrice);
@@ -62,14 +63,12 @@ exports.searchGuides = async (req, res) => {
       paramCount++;
     }
 
-    // Rating filter
     if (minRating) {
-      query += ` AND g.rating >= $${paramCount}`;
+      query += ` AND COALESCE(AVG(r.rating), 0) >= $${paramCount}`;
       params.push(minRating);
       paramCount++;
     }
 
-    // Language filter
     if (languages) {
       const langArray = Array.isArray(languages) ? languages : [languages];
       query += ` AND g.languages && $${paramCount}::text[]`;
@@ -77,7 +76,6 @@ exports.searchGuides = async (req, res) => {
       paramCount++;
     }
 
-    // Specialty filter
     if (specialties) {
       const specArray = Array.isArray(specialties) ? specialties : [specialties];
       query += ` AND g.specialties && $${paramCount}::text[]`;
@@ -87,32 +85,19 @@ exports.searchGuides = async (req, res) => {
 
     query += ` GROUP BY g.id, p.first_name, p.last_name, p.avatar_url, p.phone`;
 
-    // Vehicle filter
-    if (hasVehicle === 'true') {
-      query += ` HAVING COUNT(DISTINCT v.id) > 0`;
-    }
-
-    // Sorting
     if (sortBy === 'rating') {
-      query += ` ORDER BY g.rating DESC, g.total_reviews DESC`;
+      query += ` ORDER BY avg_rating DESC, review_count DESC`;
     } else if (sortBy === 'price') {
       query += ` ORDER BY g.hourly_rate ASC`;
+    } else {
+      query += ` ORDER BY g.created_at DESC`;
     }
 
-    // Pagination
     const offset = (page - 1) * limit;
     query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);
-
-    // Get total count
-    let countQuery = `
-      SELECT COUNT(DISTINCT g.id) as total
-      FROM guides g
-      WHERE g.is_verified = true AND g.availability_status = true
-    `;
-    const countResult = await db.query(countQuery);
 
     res.json({
       success: true,
@@ -122,17 +107,11 @@ exports.searchGuides = async (req, res) => {
           city: guide.city,
           state: guide.state,
           pinCode: guide.pin_code,
-          coordinates: {
-            lat: parseFloat(guide.latitude),
-            lng: parseFloat(guide.longitude),
-          },
         },
       })),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: parseInt(countResult.rows.total),
-        totalPages: Math.ceil(countResult.rows.total / limit),
       },
     });
   } catch (error) {
@@ -150,7 +129,6 @@ exports.getGuideById = async (req, res) => {
       `SELECT 
         g.*,
         p.first_name, p.last_name, p.email, p.phone, p.avatar_url,
-        COALESCE(json_agg(DISTINCT v.*) FILTER (WHERE v.id IS NOT NULL), '[]') as vehicles,
         COALESCE(json_agg(DISTINCT jsonb_build_object(
           'id', r.id,
           'rating', r.rating,
@@ -161,8 +139,7 @@ exports.getGuideById = async (req, res) => {
         )) FILTER (WHERE r.id IS NOT NULL), '[]') as reviews
        FROM guides g
        JOIN profiles p ON g.user_id = p.id
-       LEFT JOIN vehicles v ON g.id = v.guide_id
-       LEFT JOIN reviews r ON g.id = r.guide_id
+       LEFT JOIN guide_reviews r ON g.id = r.guide_id
        LEFT JOIN profiles pt ON r.tourist_id = pt.id
        WHERE g.id = $1
        GROUP BY g.id, p.first_name, p.last_name, p.email, p.phone, p.avatar_url`,
@@ -173,7 +150,7 @@ exports.getGuideById = async (req, res) => {
       return res.status(404).json({ error: 'Guide not found' });
     }
 
-    const guide = result.rows;
+    const guide = result.rows[0];
 
     res.json({
       success: true,
@@ -184,10 +161,6 @@ exports.getGuideById = async (req, res) => {
           state: guide.state,
           pinCode: guide.pin_code,
           address: guide.address,
-          coordinates: {
-            lat: parseFloat(guide.latitude),
-            lng: parseFloat(guide.longitude),
-          },
         },
       },
     });
@@ -197,13 +170,25 @@ exports.getGuideById = async (req, res) => {
   }
 };
 
-// Create guide profile (for guides)
+// ===== PROFILE MANAGEMENT =====
+
+// Create guide profile
 exports.createGuideProfile = async (req, res) => {
   try {
     const {
-      bio, address, city, state, pinCode, latitude, longitude,
-      hourlyRate, dailyRate, experienceYears, specialties, languages,
-      certifications
+      bio,
+      address,
+      city,
+      state,
+      pinCode,
+      latitude,
+      longitude,
+      hourlyRate,
+      dailyRate,
+      experienceYears,
+      specialties,
+      languages,
+      certifications,
     } = req.body;
 
     // Check if user already has a guide profile
@@ -220,19 +205,31 @@ exports.createGuideProfile = async (req, res) => {
       `INSERT INTO guides (
         user_id, bio, address, city, state, pin_code,
         latitude, longitude, hourly_rate, daily_rate, experience_years,
-        specialties, languages, certifications
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        specialties, languages, certifications, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *`,
       [
-        req.user.id, bio, address, city, state, pinCode,
-        latitude, longitude, hourlyRate, dailyRate, experienceYears,
-        specialties, languages, certifications
+        req.user.id,
+        bio,
+        address,
+        city,
+        state,
+        pinCode,
+        latitude,
+        longitude,
+        hourlyRate,
+        dailyRate,
+        experienceYears,
+        specialties,
+        languages,
+        certifications,
       ]
     );
 
     res.status(201).json({
       success: true,
       guide: result.rows,
+      message: 'Guide profile created successfully',
     });
   } catch (error) {
     console.error('Create guide profile error:', error);
@@ -260,20 +257,31 @@ exports.updateGuideProfile = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Build update query dynamically
     const allowedFields = [
-      'bio', 'address', 'city', 'state', 'pin_code', 'latitude', 'longitude',
-      'hourly_rate', 'daily_rate', 'experience_years', 'specialties',
-      'languages', 'certifications', 'availability_status'
+      'bio',
+      'address',
+      'city',
+      'state',
+      'pin_code',
+      'latitude',
+      'longitude',
+      'hourly_rate',
+      'daily_rate',
+      'experience_years',
+      'specialties',
+      'languages',
+      'certifications',
+      'is_verified',
     ];
 
     const updateFields = [];
     const values = [];
     let paramCount = 1;
 
-    Object.keys(updates).forEach(key => {
-      if (allowedFields.includes(key)) {
-        updateFields.push(`${key} = $${paramCount}`);
+    Object.keys(updates).forEach((key) => {
+      const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+      if (allowedFields.includes(snakeKey)) {
+        updateFields.push(`${snakeKey} = $${paramCount}`);
         values.push(updates[key]);
         paramCount++;
       }
@@ -283,10 +291,11 @@ exports.updateGuideProfile = async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
     values.push(id);
     const query = `
       UPDATE guides 
-      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      SET ${updateFields.join(', ')}
       WHERE id = $${paramCount}
       RETURNING *
     `;
@@ -300,6 +309,573 @@ exports.updateGuideProfile = async (req, res) => {
   } catch (error) {
     console.error('Update guide profile error:', error);
     res.status(500).json({ error: 'Failed to update guide profile' });
+  }
+};
+
+// Delete guide profile
+exports.deleteGuideProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      'DELETE FROM guides WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: 'Guide not found or not authorized' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Guide profile deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete guide error:', error);
+    res.status(500).json({ error: 'Failed to delete guide' });
+  }
+};
+
+// ===== DASHBOARD =====
+
+// Get guide dashboard with stats
+exports.getGuideDashboard = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch guide profile
+    const guideResult = await db.query(
+      `SELECT 
+        g.*,
+        p.first_name, p.last_name, p.phone, p.email
+       FROM guides g
+       JOIN profiles p ON g.user_id = p.id
+       WHERE g.user_id = $1`,
+      [userId]
+    );
+
+    if (guideResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Guide profile not found' });
+    }
+
+    const guide = guideResult.rows[0];
+
+    // Fetch bookings - FIX: Corrected field names
+    const bookingsResult = await db.query(
+      `SELECT 
+        tb.id,
+        tb.guide_id,
+        tb.tourist_id,
+        tb.start_date,
+        tb.end_date,
+        tb.number_of_people,
+        tb.total_price,
+        tb.status,
+        tb.notes,
+        tb.created_at,
+        tb.updated_at,
+        p.first_name as tourist_first_name,
+        p.last_name as tourist_last_name,
+        p.email as tourist_email,
+        p.phone as tourist_phone
+       FROM tour_bookings tb
+       JOIN profiles p ON tb.tourist_id = p.id
+       WHERE tb.guide_id = $1
+       ORDER BY tb.created_at DESC`,
+      [guide.id]
+    );
+
+    // Calculate stats - FIX: Changed from bookingsResult.rows to bookingsResult.rows
+    const bookings = bookingsResult.rows;
+    const totalBookings = bookings.length;
+    const confirmedBookings = bookings.filter(
+      (b) => b.status === 'confirmed'
+    ).length;
+    const pendingRequests = bookings.filter(
+      (b) => b.status === 'pending'
+    ).length;
+    const totalRevenue = bookings
+      .filter((b) => b.status === 'confirmed')
+      .reduce((sum, b) => sum + parseFloat(b.total_price || 0), 0);
+
+    const upcomingBookings = bookings.filter((b) => {
+      const endDate = new Date(b.end_date);
+      return endDate >= new Date();
+    }).length;
+
+    res.json({
+      success: true,
+      guide: {
+        ...guide,
+        stats: {
+          totalBookings,
+          confirmedBookings,
+          pendingRequests,
+          totalRevenue,
+          upcomingBookings,
+        },
+      },
+      bookings: bookings.slice(0, 10),
+    });
+  } catch (error) {
+    console.error('Get guide dashboard error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard' });
+  }
+};
+
+// Get guide's bookings with pagination
+exports.getGuideBookings = async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const userId = req.user.id;
+
+    // Get guide ID
+    const guideResult = await db.query(
+      'SELECT id FROM guides WHERE user_id = $1',
+      [userId]
+    );
+
+    if (guideResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Guide not found' });
+    }
+
+    // FIX: Changed from guideResult.rows.id to guideResult.rows.id
+    const guideId = guideResult.rows.id;
+
+    let query = `
+      SELECT 
+        tb.id,
+        tb.guide_id,
+        tb.tourist_id,
+        tb.start_date,
+        tb.end_date,
+        tb.number_of_people,
+        tb.total_price,
+        tb.status,
+        tb.notes,
+        tb.created_at,
+        tb.updated_at,
+        p.first_name as tourist_first_name,
+        p.last_name as tourist_last_name,
+        p.email as tourist_email,
+        p.phone as tourist_phone
+       FROM tour_bookings tb
+       JOIN profiles p ON tb.tourist_id = p.id
+       WHERE tb.guide_id = $1
+    `;
+
+    const params = [guideId];
+    let paramCount = 2;
+
+    if (status) {
+      query += ` AND tb.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+
+    query += ` ORDER BY tb.created_at DESC`;
+
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      bookings: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Get guide bookings error:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+};
+
+// Update booking status
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    if (!['pending', 'confirmed', 'rejected', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    // Get guide ID
+    const guideResult = await db.query(
+      'SELECT id FROM guides WHERE user_id = $1',
+      [userId]
+    );
+
+    if (guideResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Guide not found' });
+    }
+
+    // FIX: Changed from guideResult.rows.id to guideResult.rows.id
+    const guideId = guideResult.rows[0].id;
+
+    // Update booking
+    const result = await db.query(
+      `UPDATE tour_bookings 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND guide_id = $3
+       RETURNING *`,
+      [status, bookingId, guideId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    res.json({
+      success: true,
+      booking: result.rows[0],
+      message: `Booking ${status} successfully`,
+    });
+  } catch (error) {
+    console.error('Update booking status error:', error);
+    res.status(500).json({ error: 'Failed to update booking' });
+  }
+};
+
+// ===== BOOKING CREATION =====
+
+// Create tour booking (Tourist books a guide)
+exports.createTourBooking = [
+  body('start_date').notEmpty().withMessage('Start date is required'),
+  body('end_date').notEmpty().withMessage('End date is required'),
+  body('number_of_people')
+    .isInt({ min: 1 })
+    .withMessage('At least 1 person required'),
+  body('total_price')
+    .isFloat({ min: 0 })
+    .withMessage('Total price is required'),
+
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { guideId } = req.params;
+      const { start_date, end_date, number_of_people, total_price, notes } =
+        req.body;
+
+      // Verify guide exists
+      const guideExists = await db.query(
+        'SELECT id FROM guides WHERE id = $1',
+        [guideId]
+      );
+
+      if (guideExists.rows.length === 0) {
+        return res.status(404).json({ error: 'Guide not found' });
+      }
+
+      // Create booking
+      const booking = await db.query(
+        `INSERT INTO tour_bookings (
+          guide_id, tourist_id, start_date, end_date,
+          number_of_people, total_price, status, notes, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING *`,
+        [
+          guideId,
+          req.user.id,
+          start_date,
+          end_date,
+          number_of_people,
+          total_price,
+          notes,
+        ]
+      );
+
+      res.status(201).json({
+        success: true,
+        booking: booking.rows,
+        message: 'Booking request sent successfully',
+      });
+    } catch (error) {
+      console.error('Create booking error:', error);
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
+  },
+];
+
+// Get user's tour bookings
+exports.getUserTourBookings = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+
+    let query = `
+      SELECT 
+        tb.*,
+        g.city as guide_city,
+        g.daily_rate,
+        g.hourly_rate,
+        p.first_name as guide_first_name,
+        p.last_name as guide_last_name,
+        p.phone as guide_phone,
+        p.avatar_url as guide_avatar
+       FROM tour_bookings tb
+       JOIN guides g ON tb.guide_id = g.id
+       JOIN profiles p ON g.user_id = p.id
+       WHERE tb.tourist_id = $1
+    `;
+
+    const params = [req.user.id];
+    let paramCount = 2;
+
+    if (status) {
+      query += ` AND tb.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+
+    query += ` ORDER BY tb.created_at DESC`;
+
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      bookings: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Get user bookings error:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+};
+
+// ===== MESSAGING =====
+
+// Send message
+exports.sendMessage = [
+  body('message')
+    .trim()
+    .notEmpty()
+    .withMessage('Message cannot be empty'),
+
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { guideId } = req.params;
+      const { message } = req.body;
+
+      // Verify guide exists
+      const guideExists = await db.query(
+        'SELECT user_id FROM guides WHERE id = $1',
+        [guideId]
+      );
+
+      if (guideExists.rows.length === 0) {
+        return res.status(404).json({ error: 'Guide not found' });
+      }
+
+      const recipientId = guideExists.rows.user_id;
+
+      // Create message
+      const result = await db.query(
+        `INSERT INTO messages (
+          sender_id, recipient_id, message, is_read, created_at
+        )
+        VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP)
+        RETURNING *`,
+        [req.user.id, recipientId, message]
+      );
+
+      res.status(201).json({
+        success: true,
+        message: result.rows,
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+      res.status(500).json({ error: 'Failed to send message' });
+    }
+  },
+];
+
+// Get messages with specific guide
+exports.getMessages = async (req, res) => {
+  try {
+    const { guideId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+
+    // Get guide's user_id
+    const guideResult = await db.query(
+      'SELECT user_id FROM guides WHERE id = $1',
+      [guideId]
+    );
+
+    if (guideResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Guide not found' });
+    }
+
+    const guideUserId = guideResult.rows.user_id;
+
+    const offset = (page - 1) * limit;
+
+    const result = await db.query(
+      `SELECT 
+        m.*,
+        sender.first_name as sender_first_name,
+        sender.last_name as sender_last_name,
+        sender.avatar_url as sender_avatar
+       FROM messages m
+       JOIN profiles sender ON m.sender_id = sender.id
+       WHERE (m.sender_id = $1 AND m.recipient_id = $2)
+          OR (m.sender_id = $2 AND m.recipient_id = $1)
+       ORDER BY m.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [req.user.id, guideUserId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      messages: result.rows.reverse(),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+};
+
+// Mark message as read
+exports.markMessageRead = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    const result = await db.query(
+      `UPDATE messages 
+       SET is_read = true
+       WHERE id = $1 AND recipient_id = $2
+       RETURNING *`,
+      [messageId, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    res.json({
+      success: true,
+      message: result.rows,
+    });
+  } catch (error) {
+    console.error('Mark message read error:', error);
+    res.status(500).json({ error: 'Failed to mark message as read' });
+  }
+};
+
+// ===== REVIEWS =====
+
+// Add review to guide
+exports.addGuideReview = [
+  body('rating')
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating must be 1-5'),
+  body('comment').trim().notEmpty().withMessage('Comment is required'),
+
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { guideId } = req.params;
+      const { rating, comment } = req.body;
+
+      // Verify guide exists
+      const guideExists = await db.query(
+        'SELECT id FROM guides WHERE id = $1',
+        [guideId]
+      );
+
+      if (guideExists.rows.length === 0) {
+        return res.status(404).json({ error: 'Guide not found' });
+      }
+
+      const result = await db.query(
+        `INSERT INTO guide_reviews (
+          guide_id, tourist_id, rating, comment, created_at
+        )
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        RETURNING *`,
+        [guideId, req.user.id, rating, comment]
+      );
+
+      // Update guide's average rating
+      await db.query(
+        `UPDATE guides 
+         SET rating = (SELECT AVG(rating) FROM guide_reviews WHERE guide_id = $1),
+             total_reviews = (SELECT COUNT(*) FROM guide_reviews WHERE guide_id = $1)
+         WHERE id = $1`,
+        [guideId]
+      );
+
+      res.status(201).json({
+        success: true,
+        review: result.rows,
+      });
+    } catch (error) {
+      console.error('Add review error:', error);
+      res.status(500).json({ error: 'Failed to add review' });
+    }
+  },
+];
+
+// Get guide reviews
+exports.getGuideReviews = async (req, res) => {
+  try {
+    const { guideId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const result = await db.query(
+      `SELECT 
+        gr.*,
+        p.first_name, p.last_name, p.avatar_url
+       FROM guide_reviews gr
+       JOIN profiles p ON gr.tourist_id = p.id
+       WHERE gr.guide_id = $1
+       ORDER BY gr.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [guideId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      reviews: result.rows,
+      pagination: { page: parseInt(page), limit: parseInt(limit) },
+    });
+  } catch (error) {
+    console.error('Get reviews error:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
   }
 };
 

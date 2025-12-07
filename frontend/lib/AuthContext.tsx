@@ -8,7 +8,8 @@ type User = {
   email: string;
   firstName?: string;
   lastName?: string;
-  roles?: string[];
+  phone?: string;
+  role?: 'tourist' | 'guide' | 'hotel_owner'; 
 };
 
 type AuthContextType = {

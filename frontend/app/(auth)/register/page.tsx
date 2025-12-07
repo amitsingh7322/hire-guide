@@ -70,7 +70,14 @@ const handleSubmit = async (e: React.FormEvent) => {
 
         // ✅ Wait for state updates, then redirect
         setTimeout(() => {
+          // router.push('/');
+        if (formData.role === 'guide') {
+          router.push('/guides/complete-profile');
+        } else if (formData.role === 'hotel_owner') {
+          router.push('/hotels/complete-profile');
+        } else {
           router.push('/');
+        }
         }, 500);
       } else {
         throw new Error('Invalid registration response.');

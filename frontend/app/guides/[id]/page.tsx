@@ -1,64 +1,103 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { Star, MapPin, Calendar, Phone, MessageSquare, ChevronLeft, Trophy, Award } from 'lucide-react';
+import { Star, MapPin, Calendar, Phone, MessageSquare, ChevronLeft, Trophy, Award, Trash2, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
-import { toastError, toastSuccess }  from '@/lib/ToastContext';
+import { toastError, toastSuccess } from '@/lib/ToastContext';
+
+// Modals
+import BookingModal from '../../../components/modals/BookingModal';
+import MessagingModal from '../../../components/modals/MessagingModal';
+import EditGuideModal from '../../../components/guide/EditGuideModal';
 
 interface Guide {
   id: string;
   name: string;
-    bio: string;
-    city: string;
-    state: string;
-    profile_image?: string;
-    rating: number;
-    daily_rate: number;
-    specialties?: string[];
-    languages?: string[];
-    total_tours?: number;
-    phone?: string;
-    email?: string;
-    experience_years?: number;
+  bio: string;
+  city: string;
+  state: string;
+  profile_image?: string;
+  rating: number;
+  daily_rate: number;
+  specialties?: string[];
+  languages?: string[];
+  total_tours?: number;
+  phone?: string;
+  email?: string;
+  experience_years?: number;
+  user_id?: string;
 }
 
 export default function GuideDetailsPage() {
-    const params = useParams();
-    const guideId = params.id as string;
-    const [guide, setGuide] = useState<Guide | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const params = useParams();
+  const router = useRouter();
+  const guideId = params.id as string;
+  
+  const [guide, setGuide] = useState<Guide | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  
+  // Modal states
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-    useEffect(() => {
-        const fetchGuide = async () => {
-            try {
-                const response = await api.get(`/api/guides/${guideId}`);
-                // Extract guide from nested structure
-                let guideData = null;
-                if (response.guide) {
-                    // Try to get the first object in guide (it's keyed with "0")
-                    guideData = response.guide["0"] || Object.values(response.guide)[0];
-                }
+  useEffect(() => {
+    const fetchGuide = async () => {
+      try {
+        const response = await api.get(`/api/guides/${guideId}`);
+        let guideData = response.guide;
+        
+        if (Array.isArray(guideData)) {
+          guideData = guideData;
+        } 
+        // else if (typeof guideData === 'object' && guideData !== null) {
+        //   const values = Object.values(guideData);
+        //   if (values.length > 0 && typeof values === 'object') {
+        //     guideData = values;
+        //   }
+        // }
+        setGuide(guideData as Guide);
 
-                if (!guideData) {
-                    throw new Error('Invalid guide data structure');
-                }
-
-                setGuide(guideData as Guide);
-
-            } catch (err: any) {
-                setError(err.message || 'Failed to load guide');
-                toastError(err?.message || 'Failed to load guide');
-            } finally {
-                setLoading(false);
+        // Check if it's user's own profile
+        const storedAuthUser = localStorage.getItem('authUser');
+        const currentUser : any = storedAuthUser ? JSON.parse(storedAuthUser) : null;
+        if (currentUser && currentUser.id && (guideData as Guide).id === currentUser.id) {
+          setIsOwnProfile(true);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to load guide');
+        toastError(err?.message || 'Failed to load guide');
+      } finally {
+        setLoading(false);
       }
     };
 
     if (guideId) fetchGuide();
   }, [guideId]);
+
+  const handleDeleteGuide = async () => {
+    if (!window.confirm('Are you sure you want to delete your guide profile? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/guides/${guide?.id}`);
+      toastSuccess('Guide profile deleted successfully');
+      router.push('/guides');
+    } catch (err: any) {
+      toastError(err?.message || 'Failed to delete guide');
+    }
+  };
+
+  const handleEditSuccess = () => {
+    // Refetch guide data
+    window.location.reload();
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
   if (error || !guide) return (
@@ -193,28 +232,102 @@ export default function GuideDetailsPage() {
               {guide.phone && (
                 <div className="mb-4 flex items-center gap-2 text-gray-700">
                   <Phone className="w-5 h-5 text-teal-600" />
-                  <a href={`tel:${guide.phone}`}>{guide.phone}</a>
+                  <a href={`tel:${guide.phone}`} className="hover:underline">{guide.phone}</a>
                 </div>
               )}
 
               {guide.email && (
                 <div className="mb-6 flex items-center gap-2 text-gray-700">
                   <MessageSquare className="w-5 h-5 text-teal-600" />
-                  <a href={`mailto:${guide.email}`}>{guide.email}</a>
+                  <a href={`mailto:${guide.email}`} className="hover:underline">{guide.email}</a>
                 </div>
               )}
 
-              <button className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg mb-3">
-                Book Tour
-              </button>
-
-              <button className="w-full px-4 py-3 border border-teal-600 text-teal-600 hover:bg-teal-50 font-semibold rounded-lg">
-                Message Guide
-              </button>
+              {/* Action Buttons */}
+              {isOwnProfile ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Edit className="w-5 h-5" />
+                    Edit Profile
+                  </button>
+                  <Link
+                    href="/guides/manage-vehicles"
+                    className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-center"
+                  >
+                    Manage Vehicles
+                  </Link>
+                  <Link
+                    href="/guides/bookings"
+                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg text-center"
+                  >
+                    My Bookings
+                  </Link>
+                  <button
+                    onClick={handleDeleteGuide}
+                    className="w-full px-4 py-3 border-2 border-red-600 text-red-600 hover:bg-red-50 font-semibold rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    Delete Profile
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setShowBookingModal(true)}
+                    className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg"
+                  >
+                    Book Tour
+                  </button>
+                  <button
+                    onClick={() => setShowMessageModal(true)}
+                    className="w-full px-4 py-3 border border-teal-600 text-teal-600 hover:bg-teal-50 font-semibold rounded-lg"
+                  >
+                    Message Guide
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      {showBookingModal && (
+        <BookingModal
+          guideId={guide.id}
+          guideName={guide.name}
+          dailyRate={guide.daily_rate}
+          onClose={() => setShowBookingModal(false)}
+          onSuccess={() => {
+            setShowBookingModal(false);
+            toastSuccess('Booking created successfully!');
+          }}
+        />
+      )}
+
+      {showMessageModal && (
+        <MessagingModal
+          recipientId={guide.user_id || ''}
+          recipientName={guide.name}
+          onClose={() => setShowMessageModal(false)}
+          onSuccess={() => {
+            setShowMessageModal(false);
+            toastSuccess('Message sent!');
+          }}
+        />
+      )}
+
+      {showEditModal && isOwnProfile && (
+        <EditGuideModal
+          guideId={guide.id}
+          initialData={guide}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleEditSuccess}
+        />
+      )}
     </div>
   );
 }

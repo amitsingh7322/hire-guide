@@ -3,14 +3,22 @@ const db = require('../models/db');
 
 const authenticate = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ');
-    
-    if (!token) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
       return res.status(401).json({ error: 'No token provided' });
     }
+    const parts = authHeader.split(' ');
+
+    // Must be: ["Bearer", "token"]
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return res.status(401).json({ error: 'Invalid token format' });
+    }
+
+    const token = parts[1];
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     const result = await db.query(
       'SELECT id, email, first_name, last_name FROM profiles WHERE id = $1',
       [decoded.userId]
@@ -20,9 +28,10 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    req.user = result.rows;
-    next();
+    req.user = result.rows[0];
+    return next();
   } catch (error) {
+    console.log('Authentication error:', error);
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
@@ -42,7 +51,7 @@ const authorize = (...roles) => {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      next();
+     return next();
     } catch (error) {
       return res.status(500).json({ error: 'Authorization failed' });
     }

@@ -26,25 +26,37 @@ const handleSubmit = async (e: React.FormEvent) => {
     if(response && response.error){
       throw new Error(response.error);}
     if (response && typeof response === 'object') {
-      const res :any= response as { token?: unknown };
+      const res: any = response as { token?: unknown };
       console.log("Login response:", res);
       if (typeof res.token === 'string') {
         console.log("Login successful, token:", res.token);
-        
+
         // Set token first
         api.setToken(res.token);
-        
-        // Store user data
-        localStorage.setItem('authUser', JSON.stringify(res.user));
-        
-        // Update context
-        setUser(res.user);
-        
+        // ✅ Ensure user has role
+        const userWithRole = {
+          ...res.user,
+          role: res.user.role || 'tourist',  // Fallback to tourist
+        };
+        // ✅ Store user data with role
+        localStorage.setItem('authUser', JSON.stringify(userWithRole));
+
+        // ✅ Update context
+        setUser(userWithRole);
+
+
         toastSuccess('Login successful! Redirecting...');
-        
+
         // Wait for context to update, then navigate
         setTimeout(() => {
+        // router.push('/');
+        if (res?.user?.role === 'guide') {
+          router.push('/guides/dashboard');
+        } else if (res?.user?.role === 'hotel_owner') {
+          router.push('/hotels/dashboard');
+        } else {
           router.push('/');
+        }
         }, 500);  // Give React time to update Header
       } else {
         throw new Error('Invalid login response.');

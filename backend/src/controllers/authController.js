@@ -40,7 +40,6 @@ exports.register = [
          VALUES ($1, $2, $3, $4, $5) RETURNING id, email, first_name, last_name`,
         [email, passwordHash, firstName, lastName, phone]
       );
-console.log("userResult:",userResult,  userResult.rows[0]);
       const user = userResult.rows[0];
 
       // Assign role
@@ -63,6 +62,7 @@ console.log("userResult:",userResult,  userResult.rows[0]);
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
+          phone: user.phone,  
           role,
         },
         token,
@@ -106,7 +106,7 @@ exports.login = [
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password_hash);
-      
+
       if (!isValidPassword) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -117,7 +117,14 @@ exports.login = [
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN }
       );
+      // FIXED: Convert array to single role
+      const roleArray = Array.isArray(user.roles)
+        ? user.roles.filter(r => r !== null)
+        : typeof user.roles === 'string'
+          ? user.roles.replace(/[{}"]/g, '').split(',').filter(r => r && r !== 'NULL')
+          : [];
 
+      const role = roleArray[0] || 'tourist'; // Get first role
       res.json({
         success: true,
         user: {
@@ -125,11 +132,7 @@ exports.login = [
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
-          roles: Array.isArray(user.roles)
-            ? user.roles.filter(r => r !== null)
-            : typeof user.roles === 'string'
-              ? user.roles.replace(/[{}"]/g, '').split(',').filter(r => r && r !== 'NULL')
-              : []
+          role: role
         },
         token,
       });

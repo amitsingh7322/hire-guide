@@ -1,54 +1,29 @@
 // ============================================
-// Message Routes
+// Message Routes - UPDATED
 // src/routes/messages.js
 // ============================================
 
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middlewares/auth');
-const db = require('../models/db');
+const messageController = require('../controllers/messageController');
 
-// Get user messages
-router.get('/', authenticate, async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT m.*, 
-              ps.first_name || ' ' || ps.last_name as sender_name,
-              pr.first_name || ' ' || pr.last_name as receiver_name
-       FROM messages m
-       JOIN profiles ps ON m.sender_id = ps.id
-       JOIN profiles pr ON m.receiver_id = pr.id
-       WHERE m.sender_id = $1 OR m.receiver_id = $1
-       ORDER BY m.created_at DESC`,
-      [req.user.id]
-    );
+// Get all messages for user
+router.get('/', authenticate, messageController.getAllMessages);
 
-    res.json({ success: true, messages: result.rows });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
+// Get conversation with specific user
+router.get('/conversation/:userId', authenticate, messageController.getConversation);
 
-// Get messages for a specific booking
-router.get('/booking/:bookingId', authenticate, async (req, res) => {
-  try {
-    const { bookingId } = req.params;
+// Send message
+router.post('/', authenticate, messageController.sendMessage);
 
-    const result = await db.query(
-      `SELECT m.*, 
-              ps.first_name || ' ' || ps.last_name as sender_name,
-              ps.avatar_url as sender_avatar
-       FROM messages m
-       JOIN profiles ps ON m.sender_id = ps.id
-       WHERE m.booking_id = $1
-       ORDER BY m.created_at ASC`,
-      [bookingId]
-    );
+// Mark message as read
+router.put('/:messageId/read', authenticate, messageController.markAsRead);
 
-    res.json({ success: true, messages: result.rows });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
+// Mark all messages from user as read
+router.put('/user/:userId/read-all', authenticate, messageController.markAllAsRead);
+
+// Delete message
+router.delete('/:messageId', authenticate, messageController.deleteMessage);
 
 module.exports = router;
