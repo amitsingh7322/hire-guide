@@ -46,17 +46,49 @@ export default function Header() {
           <Link href="/hotels" className="text-gray-600 hover:text-gray-900 transition">
             Hotels
           </Link>
+          {user?.role === 'tourist' && (
+            <>
+              <Link href="/bookings/my-bookings" className="...">
+                My Bookings
+              </Link>
+              <Link href="/messages" className="...">
+                Messages
+              </Link>
+            </>
+          )}
 
+          {user?.role === 'guide' && (
+            <>
+              <Link href="/guide/dashboard" className="...">
+                Dashboard
+              </Link>
+              <Link href="/messages" className="...">
+                Messages
+              </Link>
+            </>
+          )}
+
+          {user?.role === 'hotel_owner' && (
+            <>
+              <Link href="/hotel/dashboard" className="...">
+                Dashboard
+              </Link>
+              <Link href="/messages" className="...">
+                Messages
+              </Link>
+            </>
+          )}
           {user ? (
             <div className="flex items-center gap-4">
               <div className="flex flex-col text-right">
                 <span className="text-gray-900 font-semibold">
                   {user.firstName || user.email}
                 </span>
-                {user.roles?.length ? (
-                  <span className="text-xs text-gray-600">{user.roles.join(', ')}</span>
+                {user.role ? (
+                  <span className="text-xs text-gray-600">{user.role}</span>
                 ) : null}
               </div>
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded transition"

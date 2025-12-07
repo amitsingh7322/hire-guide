@@ -790,6 +790,120 @@ exports.markMessageRead = async (req, res) => {
   }
 };
 
+// Get single guide booking details
+exports.getGuideBookingDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    console.log('=== DEBUG: Guide Booking Details ===');
+    console.log('Booking ID from URL:', id);
+    console.log('User ID from token:', userId);
+
+    // Step 1: Check if booking exists at all
+    const checkBooking = await db.query(
+      `SELECT id, tourist_id, guide_id FROM bookings WHERE id = $1`,
+      [id]
+    );
+    console.log('Booking exists?', checkBooking.rows.length > 0);
+    if (checkBooking.rows.length > 0) {
+      console.log('Booking data:', checkBooking.rows);
+      console.log('Booking tourist_id matches?', checkBooking.rows.tourist_id === userId);
+    }
+
+    // Step 2: Run the full query
+    const result = await db.query(
+      `SELECT 
+        b.id,
+        b.guide_id,
+        b.booking_date,
+        b.duration_hours,
+        b.number_of_people,
+        b.guide_amount,
+        b.vehicle_amount,
+        b.platform_fee,
+        b.total_amount,
+        b.status,
+        b.special_requests,
+        b.created_at,
+        b.updated_at,
+        g.id as guide_id_check,
+        g.hourly_rate,
+        g.daily_rate,
+        g.bio,
+        g.address,
+        g.city,
+        p.first_name as guide_first_name,
+        p.last_name as guide_last_name,
+        p.email as guide_email,
+        p.phone as guide_phone
+       FROM bookings b
+       JOIN guides g ON b.guide_id = g.id
+       JOIN profiles p ON g.user_id = p.id
+       WHERE b.id = $1 AND b.tourist_id = $2`,
+      [id, userId]
+    );
+
+    console.log('Full query returned rows:', result.rows.length);
+
+    if (result.rows.length === 0) {
+      console.log('Query returned no results. Possible reasons:');
+      console.log('1. Booking ID does not exist');
+      console.log('2. User ID does not match booking tourist_id');
+      console.log('3. Guide does not exist or profile not linked');
+      
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Booking not found',
+        debug: {
+          bookingId: id,
+          userId: userId,
+          bookingExists: checkBooking.rows.length > 0
+        }
+      });
+    }
+
+    const booking = result.rows;
+    console.log('Successfully fetched booking:', booking.id);
+
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        guide_id: booking.guide_id,
+        guide_first_name: booking.guide_first_name,
+        guide_last_name: booking.guide_last_name,
+        guide_email: booking.guide_email,
+        guide_phone: booking.guide_phone,
+        description: booking.bio,
+        address: booking.address,
+        city: booking.city,
+        booking_date: booking.booking_date,
+        duration_hours: booking.duration_hours,
+        number_of_people: booking.number_of_people,
+        hourly_rate: booking.hourly_rate,
+        daily_rate: booking.daily_rate,
+        guide_amount: booking.guide_amount,
+        vehicle_amount: booking.vehicle_amount,
+        platform_fee: booking.platform_fee,
+        total_amount: booking.total_amount,
+        status: booking.status,
+        special_requests: booking.special_requests,
+        confirmation_code: booking.id.slice(0, 8).toUpperCase(),
+        created_at: booking.created_at,
+        updated_at: booking.updated_at,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching guide booking:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch booking details' 
+    });
+  }
+};
+
+
 // ===== REVIEWS =====
 
 // Add review to guide

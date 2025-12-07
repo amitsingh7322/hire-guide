@@ -1,5 +1,6 @@
 const db = require('../models/db');
 const { body, validationResult } = require('express-validator');
+const { get } = require('../routes/guides');
 
 // ===== SEARCH & GET =====
 
@@ -629,6 +630,93 @@ exports.getUserBookings = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 };
+
+exports.getHotelBookingDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await db.query(
+      `SELECT 
+        b.id,
+        b.hotel_id,
+        b.check_in_date,
+        b.check_out_date,
+        b.number_of_rooms,
+        b.number_of_guests,
+        b.total_nights,
+        b.price_per_night,
+        b.total_amount,
+        b.status,
+        b.payment_status,
+        b.special_requests,
+        b.created_at,
+        b.updated_at,
+        h.name as hotel_name,
+        h.address,
+        h.city,
+        h.state,
+        h.description,
+        h.contact_phone,
+        h.contact_email,
+        h.check_in_time,
+        h.check_out_time,
+        h.cancellation_policy,
+        h.rating
+       FROM hotel_bookings b
+       JOIN hotels h ON b.hotel_id = h.id
+       WHERE b.id = $1 AND b.tourist_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Booking not found' 
+      });
+    }
+
+    const booking = result.rows[0];
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        hotel_id: booking.hotel_id,
+        hotel_name: booking.hotel_name,
+        address: booking.address,
+        city: booking.city,
+        state: booking.state,
+        description: booking.description,
+        check_in_date: booking.check_in_date,
+        check_out_date: booking.check_out_date,
+        number_of_rooms: booking.number_of_rooms,
+        number_of_guests: booking.number_of_guests,
+        total_nights: booking.total_nights,
+        price_per_night: booking.price_per_night,
+        total_amount: booking.total_amount,
+        status: booking.status,
+        payment_status: booking.payment_status,
+        special_requests: booking.special_requests,
+        contact_phone: booking.contact_phone,
+        contact_email: booking.contact_email,
+        check_in_time: booking.check_in_time,
+        check_out_time: booking.check_out_time,
+        cancellation_policy: booking.cancellation_policy,
+        rating: booking.rating,
+        confirmation_code: booking.id.slice(0, 8).toUpperCase(),
+        created_at: booking.created_at,
+        updated_at: booking.updated_at,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching hotel booking:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch booking details' 
+    });
+  }
+};
+
 
 // ===== REVIEWS =====
 

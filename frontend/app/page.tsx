@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, MapPin, Calendar, Users, Star, Car, Hotel, MessageCircle } from 'lucide-react';
 import GuideGrid from '@/components/guide/GuideGrid';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function HomePage() {
   const router = useRouter();
+  const { user, loading } = useAuth();
   const [searchType, setSearchType] = useState<'guides' | 'hotels'>('guides');
   const [searchData, setSearchData] = useState({
     location: '',
@@ -30,7 +32,31 @@ export default function HomePage() {
       router.push(`/hotels?${params}`);
     }
   };
+  // ✅ ADD THIS: Redirect owners/guides to dashboard
+  useEffect(() => {
+    if (loading) return;
 
+    if (user?.role === 'hotel_owner') {
+      router.push('/hotel/dashboard');
+      return;
+    }
+
+    if (user?.role === 'guide') {
+      router.push('/guide/dashboard');
+      return;
+    }
+  }, [user, loading, router]);
+  // Show loading while checking role
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
@@ -56,22 +82,20 @@ export default function HomePage() {
             <div className="flex justify-center gap-4 mb-8">
               <button
                 onClick={() => setSearchType('guides')}
-                className={`px-8 py-3 rounded-full font-semibold transition-all flex items-center gap-2 ${
-                  searchType === 'guides'
+                className={`px-8 py-3 rounded-full font-semibold transition-all flex items-center gap-2 ${searchType === 'guides'
                     ? 'bg-white text-teal-600 shadow-lg scale-105'
                     : 'bg-white/20 text-white hover:bg-white/30'
-                }`}
+                  }`}
               >
                 <Users className="w-5 h-5" />
                 Find Guides
               </button>
               <button
                 onClick={() => setSearchType('hotels')}
-                className={`px-8 py-3 rounded-full font-semibold transition-all flex items-center gap-2 ${
-                  searchType === 'hotels'
+                className={`px-8 py-3 rounded-full font-semibold transition-all flex items-center gap-2 ${searchType === 'hotels'
                     ? 'bg-white text-teal-600 shadow-lg scale-105'
                     : 'bg-white/20 text-white hover:bg-white/30'
-                }`}
+                  }`}
               >
                 <Hotel className="w-5 h-5" />
                 Find Hotels
@@ -98,7 +122,7 @@ export default function HomePage() {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="label">PIN Code</label>
               <div className="relative">
@@ -112,7 +136,7 @@ export default function HomePage() {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="label">{searchType === 'guides' ? 'Tour Date' : 'Check-in'}</label>
               <div className="relative">
@@ -128,7 +152,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-end">
-              <button 
+              <button
                 onClick={handleSearch}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
@@ -189,7 +213,7 @@ export default function HomePage() {
                 All guides are verified with proper documentation and authentic reviews
               </p>
             </div>
-            
+
             <div className="text-center group">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform shadow-lg">
                 <MapPin className="w-10 h-10 text-blue-600 dark:text-blue-300" />
@@ -199,7 +223,7 @@ export default function HomePage() {
                 Experience authentic local culture with knowledgeable guides
               </p>
             </div>
-            
+
             <div className="text-center group">
               <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform shadow-lg">
                 <Calendar className="w-10 h-10 text-purple-600 dark:text-purple-300" />
@@ -223,13 +247,13 @@ export default function HomePage() {
             Join thousands of travelers discovering Sikkim with local experts
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <button 
+            <button
               onClick={() => router.push('/guides')}
               className="px-8 py-4 bg-white text-teal-600 rounded-xl font-semibold hover:bg-gray-100 transition-colors shadow-lg"
             >
               Browse All Guides
             </button>
-            <button 
+            <button
               onClick={() => router.push('/hotels')}
               className="px-8 py-4 bg-white/20 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-white/30 transition-colors border-2 border-white/30"
             >

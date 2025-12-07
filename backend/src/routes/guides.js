@@ -106,6 +106,13 @@ router.put(
   guideController.markMessageRead
 );
 
+// get guide booking details
+router.get(
+  '/bookings/:id',
+  authenticate,
+  guideController.getGuideBookingDetails
+);
+
 // ===== REVIEW ROUTES =====
 
 // Add review to guide

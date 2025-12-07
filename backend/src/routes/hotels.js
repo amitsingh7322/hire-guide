@@ -92,6 +92,13 @@ router.get(
   hotelController.getUserBookings
 );
 
+// Get hotel booking details
+router.get(
+  '/bookings/:id',
+  authenticate,
+  hotelController.getHotelBookingDetails
+);
+
 // ===== REVIEW ROUTES =====
 
 // Add review to hotel
