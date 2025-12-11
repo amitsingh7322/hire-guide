@@ -40,14 +40,14 @@ export default function Header() {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8">
+          {user?.role === 'tourist' && (
+            <>
           <Link href="/guides" className="text-gray-600 hover:text-gray-900 transition">
             Find Guides
           </Link>
           <Link href="/hotels" className="text-gray-600 hover:text-gray-900 transition">
             Hotels
           </Link>
-          {user?.role === 'tourist' && (
-            <>
               <Link href="/bookings/my-bookings" className="...">
                 My Bookings
               </Link>
@@ -59,7 +59,7 @@ export default function Header() {
 
           {user?.role === 'guide' && (
             <>
-              <Link href="/guide/dashboard" className="...">
+              <Link href="/guides/dashboard" className="...">
                 Dashboard
               </Link>
               <Link href="/messages" className="...">
@@ -70,7 +70,7 @@ export default function Header() {
 
           {user?.role === 'hotel_owner' && (
             <>
-              <Link href="/hotel/dashboard" className="...">
+              <Link href="/hotels/dashboard" className="...">
                 Dashboard
               </Link>
               <Link href="/messages" className="...">

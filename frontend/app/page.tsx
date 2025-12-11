@@ -37,12 +37,12 @@ export default function HomePage() {
     if (loading) return;
 
     if (user?.role === 'hotel_owner') {
-      router.push('/hotel/dashboard');
+      router.push('/hotels/dashboard');
       return;
     }
 
     if (user?.role === 'guide') {
-      router.push('/guide/dashboard');
+      router.push('/guides/dashboard');
       return;
     }
   }, [user, loading, router]);

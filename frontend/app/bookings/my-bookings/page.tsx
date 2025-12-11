@@ -294,7 +294,7 @@ export default function MyBookingsPage() {
                 <div className="px-6 py-4 bg-gray-50 border-t flex gap-3">
                   {booking.type === 'guide' && booking.status === 'confirmed' && (
                     <button
-                      onClick={() => router.push(`/messages?user=${booking.guide_first_name}_${booking.guide_last_name}`)}
+                      onClick={() => router.push(`/messages?user=${booking.id}`)}
                       className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold transition"
                     >
                       Message {booking.guide_first_name}
