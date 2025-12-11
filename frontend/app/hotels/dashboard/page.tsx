@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/lib/api';
 import { toastError, toastSuccess } from '@/lib/ToastContext';
 import { Settings, Plus, Trash2, Edit, Users, DollarSign, Calendar, Home } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface Hotel {
   id: string;
@@ -36,6 +37,7 @@ export default function HotelDashboard() {
   const [loading, setLoading] = useState(true);
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [stats, setStats] = useState({
     totalBookings: 0,
     totalRevenue: 0,
@@ -116,18 +118,17 @@ const fetchData = async () => {
     fetchData();
   }, [authLoading, user, router]);
 
-  const handleDeleteHotel = async () => {
-    if (!hotel) return;
-    if (!window.confirm('Are you sure you want to delete this hotel?')) return;
 
-    try {
-      await api.delete(`/api/hotels/${hotel.id}`);
-      toastSuccess('Hotel deleted successfully');
-      router.push('/');
-    } catch (err: any) {
-      toastError(err?.message || 'Failed to delete hotel');
-    }
-  };
+  const handleDeleteHotel = async () => {
+  if (!hotel) return;
+  try {
+   await api.delete(`/api/hotels/${hotel.id}`);
+    toastSuccess('Hotel deleted successfully');
+    router.push('/');
+  } catch (err: any) {
+    toastError(err?.message || 'Failed to delete hotel');
+  }
+};
 
 // ✅ AFTER - CORRECT ENDPOINT
 const handleUpdateBookingStatus = async (
@@ -145,7 +146,12 @@ const handleUpdateBookingStatus = async (
     // Refresh bookings - also use correct endpoint
     const bookingsRes = await api.get(`/api/hotels/${hotel.id}/bookings`);
     if (bookingsRes.bookings) {
-      const mappedBookings = bookingsRes.bookings.map((b: any) => ({
+      console.log('Raw bookingsdcnksdnc data:', bookingsRes.bookings);
+          // Ensure bookingsRes.bookings is always an array
+          const bookings = Array.isArray(bookingsRes.bookings)
+          ? bookingsRes.bookings
+          : [bookingsRes.bookings];
+      const mappedBookings = bookings.map((b: any) => ({
         id: b.id,
         guestName: `${b.guest_first_name} ${b.guest_last_name}`,
         checkInDate: b.check_in_date,
@@ -207,12 +213,19 @@ const handleUpdateBookingStatus = async (
               Edit Profile
             </Link>
             <button
-              onClick={handleDeleteHotel}
+              onClick={() => setConfirmOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
               <Trash2 className="w-4 h-4" />
               Delete
             </button>
+            <ConfirmDialog
+              open={confirmOpen}
+              onClose={() => setConfirmOpen(false)}
+              onConfirm={handleDeleteHotel}
+              title="Delete Hotel?"
+              message="Are you sure you want to delete this hotel? This action cannot be undone."
+            />
           </div>
         </div>
       </div>

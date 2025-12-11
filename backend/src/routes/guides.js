@@ -47,6 +47,12 @@ router.put(
   guideController.updateGuideProfile
 );
 
+// Get guide details (self)
+router.get('/profile', 
+  authenticate,
+  authorize('guide'),
+  guideController.getGuideByUserId);
+
 // Get guide by ID
 router.get('/:id', guideController.getGuideById);
 

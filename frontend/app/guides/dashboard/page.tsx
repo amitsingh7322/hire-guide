@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/lib/api';
 import { toastError, toastSuccess } from '@/lib/ToastContext';
 import { Edit, Trash2, Calendar, DollarSign, Users, TrendingUp } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface Guide {
   id: string;
@@ -46,6 +47,7 @@ export default function GuideDashboard() {
   const [loading, setLoading] = useState(true);
   const [guide, setGuide] = useState<Guide | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -60,8 +62,8 @@ export default function GuideDashboard() {
         setLoading(true);
         const response = await api.get('/api/guides/dashboard');
         console.log("Dashboard response:", response);
-        if (response.success && response.guide) 
-            console.log("Dashboard data:", response);{
+        if (response.success && response.guide)
+          console.log("Dashboard data:", response); {
           setGuide(response.guide);
           setBookings(response.bookings || []);
         }
@@ -77,8 +79,6 @@ export default function GuideDashboard() {
 
   const handleDeleteProfile = async () => {
     if (!guide) return;
-    if (!window.confirm('Are you sure you want to delete your profile?')) return;
-
     try {
       await api.delete(`/api/guides/${guide.id}`);
       toastSuccess('Profile deleted successfully');
@@ -123,7 +123,7 @@ export default function GuideDashboard() {
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-gray-600 mb-4">No guide profile found</p>
           <Link
-            href="/guide/complete-profile"
+            href="/guides/complete-profile"
             className="inline-block px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
           >
             Create Guide Profile
@@ -144,19 +144,26 @@ export default function GuideDashboard() {
           </div>
           <div className="flex gap-3">
             <Link
-              href="/guide/edit-profile"
+              href="/guides/edit-profile"
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Edit className="w-4 h-4" />
               Edit Profile
             </Link>
             <button
-              onClick={handleDeleteProfile}
+              onClick={() => setConfirmOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
               <Trash2 className="w-4 h-4" />
               Delete
             </button>
+            <ConfirmDialog
+              open={confirmOpen}
+              onClose={() => setConfirmOpen(false)}
+              onConfirm={handleDeleteProfile}
+              title="Delete Profile?"
+              message="Are you sure you want to delete your profile?"
+            />
           </div>
         </div>
       </div>
@@ -307,15 +314,14 @@ export default function GuideDashboard() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            booking.status === 'confirmed'
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${booking.status === 'confirmed'
                               ? 'bg-green-100 text-green-800'
                               : booking.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : booking.status === 'rejected'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : booking.status === 'rejected'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                            }`}
                         >
                           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                         </span>

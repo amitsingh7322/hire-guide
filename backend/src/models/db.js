@@ -9,10 +9,8 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-  ssl: {
-    rejectUnauthorized: false, // important for Aiven
-},
+  connectionTimeoutMillis: 5000,
+  ssl: { rejectUnauthorized: false }
 });
 
 pool.on('connect', () => {
@@ -23,7 +21,29 @@ pool.on('error', (err) => {
   console.error('Database connection error:', err);
 });
 
+
+// -----------------------------
+// RETRY LOGIC WRAPPER
+// -----------------------------
+async function queryWithRetry(text, params, retries = 3, delay = 300) {
+  try {
+    return await pool.query(text, params);
+  
+  } catch (err) {
+    console.error(`Query failed. Retries left: ${retries}`, err.message);
+
+    // if no retries left → throw error
+    if (retries === 0) throw err;
+
+    // wait before retry
+    await new Promise((res) => setTimeout(res, delay));
+
+    // exponential backoff: increase delay each retry
+    return queryWithRetry(text, params, retries - 1, delay * 2);
+  }
+}
+
 module.exports = {
-  query: (text, params) => pool.query(text, params),
+  query: queryWithRetry,
   pool,
 };

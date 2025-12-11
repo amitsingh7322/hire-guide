@@ -123,7 +123,7 @@ exports.searchGuides = async (req, res) => {
 // Get guide by ID
 exports.getGuideById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id || req.user.id;
 
     const result = await db.query(
       `SELECT 
@@ -144,6 +144,56 @@ exports.getGuideById = async (req, res) => {
        WHERE g.id = $1
        GROUP BY g.id, p.first_name, p.last_name, p.email, p.phone, p.avatar_url`,
       [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Guide not found' });
+    }
+
+    const guide = result.rows[0];
+
+    res.json({
+      success: true,
+      guide: {
+        ...guide,
+        location: {
+          city: guide.city,
+          state: guide.state,
+          pinCode: guide.pin_code,
+          address: guide.address,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get guide error:', error);
+    res.status(500).json({ error: 'Failed to fetch guide' });
+  }
+};
+
+// Get guide by user ID (self)
+exports.getGuideByUserId = async (req, res) => {
+  try {
+    const userId = req.params.id || req.user.id;
+
+    const result = await db.query(
+      `SELECT 
+        g.*,
+        p.first_name, p.last_name, p.email, p.phone, p.avatar_url,
+        COALESCE(json_agg(DISTINCT jsonb_build_object(
+          'id', r.id,
+          'rating', r.rating,
+          'comment', r.comment,
+          'created_at', r.created_at,
+          'tourist_name', pt.first_name || ' ' || pt.last_name,
+          'tourist_avatar', pt.avatar_url
+        )) FILTER (WHERE r.id IS NOT NULL), '[]') as reviews
+       FROM guides g
+       JOIN profiles p ON g.user_id = p.id
+       LEFT JOIN guide_reviews r ON g.id = r.guide_id
+       LEFT JOIN profiles pt ON r.tourist_id = pt.id
+       WHERE g.user_id = $1
+       GROUP BY g.id, p.first_name, p.last_name, p.email, p.phone, p.avatar_url`,
+      [userId]
     );
 
     if (result.rows.length === 0) {
@@ -253,7 +303,7 @@ exports.updateGuideProfile = async (req, res) => {
       return res.status(404).json({ error: 'Guide not found' });
     }
 
-    if (guide.rows.user_id !== req.user.id) {
+    if (guide.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 

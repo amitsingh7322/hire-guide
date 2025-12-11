@@ -303,7 +303,7 @@ exports.updateHotel = async (req, res) => {
       return res.status(404).json({ error: 'Hotel not found' });
     }
 
-    if (hotel.rows.owner_id !== req.user.id) {
+    if (hotel.rows[0].owner_id !== req.user.id) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
