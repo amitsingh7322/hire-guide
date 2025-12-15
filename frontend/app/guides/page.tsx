@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, MapPin } from 'lucide-react';
 import GuideCard from '@/components/guide/GuideCard';
 import { api } from '@/lib/api';
 import { Guide, SearchFilters } from '@/types';
 
-export default function GuidesPage() {
+// Separate component for search params logic
+function GuidesContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
@@ -27,7 +28,7 @@ export default function GuidesPage() {
   useEffect(() => {
     fetchGuides();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersString]); // Use stringified version!
+  }, [filtersString]);
 
   const fetchGuides = async () => {
     try {
@@ -175,5 +176,14 @@ export default function GuidesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function GuidesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
+      <GuidesContent />
+    </Suspense>
   );
 }

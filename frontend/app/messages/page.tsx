@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -27,7 +27,7 @@ interface Message {
   sender_name?: string;
 }
 
-export default function MessagesPage() {
+function MessagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
@@ -424,5 +424,14 @@ export default function MessagesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function GuidesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
+      <MessagesContent />
+    </Suspense>
   );
 }

@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, MapPin } from 'lucide-react';
 import HotelCard from '@/components/hotel/HotelCard';
 import { api } from '@/lib/api';
 import { Hotel, HotelSearchFilters } from '@/types';
 
-export default function HotelsPage() {
+function HotelsContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -182,5 +182,14 @@ export default function HotelsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function GuidesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
+      <HotelsContent />
+    </Suspense>
   );
 }
