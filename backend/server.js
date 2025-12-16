@@ -19,7 +19,7 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'https://hire-guide-ngivs4e4b-john-kumars-projects-4029716d.vercel.app',
     credentials: true,
   },
 });
