@@ -237,6 +237,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 <img width="1901" height="879" alt="image" src="https://github.com/user-attachments/assets/201025b6-b710-44cc-bdbc-caac24fc20bf" />
+<img width="1893" height="830" alt="image" src="https://github.com/user-attachments/assets/f7dfa670-d361-4ec4-8de0-8fa907953872" />
+<img width="1880" height="834" alt="image" src="https://github.com/user-attachments/assets/c046421f-5b24-457d-9aa5-51e007ef52e7" />
+
+
 
 <div align="center">
   Made with ❤️ for travelers worldwide<br>
