@@ -236,6 +236,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Issues:** [GitHub Issues](https://github.com/amitsingh7322/hire-guide/issues)
 
 ---
+<img width="1901" height="879" alt="image" src="https://github.com/user-attachments/assets/201025b6-b710-44cc-bdbc-caac24fc20bf" />
 
 <div align="center">
   Made with ❤️ for travelers worldwide<br>
