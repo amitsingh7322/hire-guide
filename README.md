@@ -86,7 +86,7 @@ Vite (Dev) - Husky + Lint-staged
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourusername/tourspot-connect.git
+git clone https://github.com/amitsingh7322/hire-guide.git
 cd tourspot-connect
 ```
 
@@ -230,10 +230,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-**Live Demo:** [tourspot-connect.vercel.app](https://tourspot-connect.vercel.app)
-**API Docs:** [docs.tourspot-connect.com](https://docs.tourspot-connect.com)
+**Live Demo:** [hire-guide.vercel.app/](https://hire-guide.vercel.app/)
+**API Docs:** [hire-guide.onrender.com](https://hire-guide.onrender.com)
 
-**Issues:** [GitHub Issues](https://github.com/yourusername/tourspot-connect/issues)
+**Issues:** [GitHub Issues](https://github.com/amitsingh7322/hire-guide/issues)
 
 ---
 
